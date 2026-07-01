@@ -230,8 +230,8 @@ verifies numbers and says so plainly rather than overclaiming.
 
 ```bash
 # 1. Clone
-git clone [<your-repo-url> autobiz](https://github.com/garimatripathi3/AutoBiz-Verified-Competitor-Intelligence-from-SEC-Filings.git)
-cd autobiz
+git clone https://github.com/garimatripathi3/AutoBiz-Verified-Competitor-Intelligence-from-SEC-Filings.git
+cd AutoBiz-Verified-Competitor-Intelligence-from-SEC-Filings
 
 # 2. (Recommended) create a virtual environment
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
