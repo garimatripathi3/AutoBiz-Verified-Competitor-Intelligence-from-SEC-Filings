@@ -1,247 +1,193 @@
-# AutoBiz — Verified Competitor Intelligence from SEC Filings
+# AutoBiz: Verified Competitor Intelligence from SEC Filings
 
-> A multi-agent system that reads a competitor's SEC filings, preserves the
-> source behind every figure, re-checks each number against the original
-> document, and states plainly in the report when reliable data can't be found.
+AutoBiz is a multi-agent competitor intelligence system that reads SEC filings, preserves source provenance for every figure, verifies reported numbers against the original filing, and clearly states when reliable data cannot be found.
 
-**Kaggle Capstone — "5-Day AI Agents: Intensive Vibe Coding" · Track: Agents for Business**
+Kaggle Capstone: 5-Day AI Agents Intensive Vibe Coding  
+Track: Agents for Business
 
-Built on a **Google ADK multi-agent architecture**, powered by **Gemini**
-(free tier) with a **fully-offline deterministic fallback** so it runs
-anywhere — local, Google Colab, or Kaggle — with **zero paid APIs**.
+AutoBiz is built with Google ADK, Gemini, a deterministic offline fallback model, FastAPI, React, SEC EDGAR, XBRL data, source verification, and bidirectional MCP support. It can run locally, in Colab, or on Kaggle without paid APIs.
 
 ---
 
 ## The problem
 
-Ask most AI tools to research a competitor and you get a confident, fluent
-answer. It's often wrong — not because the model is incapable, but because
-nothing in the system checks whether the figures it produced correspond to
-anything the company actually filed.
+Most AI research tools are built to sound right. AutoBiz is built to be checked.
 
-For a business decision, that gap is the whole problem. A 23% revenue-growth
-figure pulled from a regulatory filing means something; the same figure
-generated because it seemed plausible means nothing — and the two look
-identical on the page.
+Ask an AI system to research a competitor and it may return a fluent answer with unsupported numbers. The issue is not only the model. The issue is that many systems never check whether a figure corresponds to anything the company actually filed.
 
-**AutoBiz treats every number as guilty until sourced: if a figure can't be
-traced to a filing, it doesn't appear as fact.** Small and mid-sized teams
-often can't afford an analyst to read annual filings, track competitor changes
-across reporting periods, and flag what warrants attention. AutoBiz does that
-job.
+For business decisions, this distinction matters. A revenue growth figure from a regulatory filing means something. The same number generated because it sounded plausible means nothing, even if both look identical in a report.
+
+AutoBiz treats every number as guilty until sourced. If a figure cannot be traced to a filing, it is not treated as fact.
 
 ---
 
 ## Table of contents
 
-1. [What it does](#what-it-does)
-2. [Why agents, not a chatbot](#why-agents-not-a-chatbot)
-3. [Course concepts demonstrated](#course-concepts-demonstrated)
-4. [Architecture](#architecture)
-5. [The verification mechanism](#the-verification-mechanism)
-6. [Quick start](#quick-start)
-7. [Running the web app](#running-the-web-app)
-8. [Running on Colab / Kaggle](#running-on-colab--kaggle)
-9. [Using live Gemini](#using-live-gemini)
-10. [Agent Skills (the Agents CLI)](#agent-skills-the-agents-cli)
-11. [Bidirectional MCP](#bidirectional-mcp)
-12. [Project structure](#project-structure)
-13. [How each subsystem works](#how-each-subsystem-works)
-14. [Security](#security)
-15. [Observability](#observability)
-16. [Evaluation](#evaluation)
-17. [Testing](#testing)
-18. [Limitations (by design)](#limitations-by-design)
-19. [Roadmap](#roadmap)
-20. [License](#license)
+1. [What AutoBiz does](#what-autobiz-does "What AutoBiz does")
+2. [Why five agents](#why-five-agents "Why five agents")
+3. [Course concepts demonstrated](#course-concepts-demonstrated "Course concepts demonstrated")
+4. [Architecture](#architecture "Architecture")
+5. [Verification](#verification "Verification")
+6. [Quick start](#quick-start "Quick start")
+7. [Running the web app](#running-the-web-app "Running the web app")
+8. [Running on Colab or Kaggle](#running-on-colab-or-kaggle "Running on Colab or Kaggle")
+9. [Using Gemini](#using-gemini "Using Gemini")
+10. [Agent Skills and CLI](#agent-skills-and-cli "Agent Skills and CLI")
+11. [Bidirectional MCP](#bidirectional-mcp "Bidirectional MCP")
+12. [Project structure](#project-structure "Project structure")
+13. [Subsystem details](#subsystem-details "Subsystem details")
+14. [Security](#security "Security")
+15. [Observability](#observability "Observability")
+16. [Evaluation](#evaluation "Evaluation")
+17. [Testing](#testing "Testing")
+18. [Limitations](#limitations "Limitations")
+19. [Roadmap](#roadmap "Roadmap")
+20. [License](#license "License")
 
 ---
 
-## What it does
+## What AutoBiz does
 
-You give AutoBiz two things:
+AutoBiz takes a user question, an optional financial document, and a competitor name. It then produces a sourced executive brief.
 
-- A **financial document** (PDF or CSV), and/or
-- A **competitor name**
+The system can:
 
-A team of **five specialist agents** then runs, strictly in order:
+- parse uploaded CSV or PDF financials;
+- research competitors using SEC 10-K filings first;
+- fall back to web search only when SEC filings are unavailable;
+- pull multi-year financial trends from SEC XBRL data;
+- compute CAGR from reported figures;
+- flag risks from filings and data gaps;
+- preserve filing source lines in the final report;
+- verify reported numbers against cached filing text;
+- report uncertainty instead of inventing unsupported data.
 
-1. **Period Planner** — decides whether financial analysis and/or competitor
-   research are relevant to the question (defaulting to both, conservatively),
-   and how many fiscal years are needed: most recent year by default, or a
-   multi-year trend if the question asks for one.
-2. **Financial Analyst** — parses and analyses your financials, single-year or
-   multi-year.
-3. **Competitor Monitor** — researches the competitor: **SEC 10-K filing
-   first**, web search only as a fallback for private/foreign companies, and an
-   honest "no reliable data" if both fail. Never fabricates.
-4. **Risk Flagging Analyst** — reviews the competitor analysis for anomalies:
-   sharp CAGR swings, litigation/regulatory language, or missing data.
-5. **Report Writer** — synthesises everything into a clean executive brief with
-   a source line attached to the filing-derived figures.
-
-Around that pipeline, AutoBiz **remembers** the interaction for follow-up
-questions, **secures** every input (PII redaction + injection detection),
-**logs** every step, and **scores** its own output.
-
-The result is a downloadable markdown brief plus a live trace of exactly what
-the agents did — and, for any numeric claim, a verification path back to the
-filing it came from.
+The final output is a markdown brief with source provenance and an execution trace showing which agents and tools ran.
 
 ---
 
-## Why agents, not a chatbot
+## Why five agents
 
-A single chatbot answers one prompt with one call. This problem genuinely needs
-a **coordinated team**, because the failure it's built to prevent — an
-unsourced number stated as fact — happens precisely when one model does
-research, interpretation, and writing in a single undifferentiated pass.
+A single model call asked to parse financials, research a competitor, flag risks, and write a report does everything in one pass. There is no clear checkpoint where a wrong number is likely to be caught.
 
-| Need | Why a chatbot can't | How AutoBiz solves it |
-|------|--------------------|----------------------|
-| Different expertise per task | One prompt can't be a great financial analyst *and* a competitive researcher *and* a risk reviewer *and* an editor | Five dedicated agents, each with a focused instruction + tools |
-| Multi-step planning | No notion of "decide scope, then analyse, then research, then review, then synthesise" | A Period Planner sets scope; a `SequentialAgent` routes the rest |
-| Tool use | Can't pull a 10-K or query XBRL by itself | ADK `FunctionTool`s per agent, hitting live SEC EDGAR |
-| Source discipline | Treats its own output as ground truth | A separate verification skill re-checks figures against the filing |
-| Continuity | Forgets across turns | SQLite session store + ChromaDB semantic recall |
-| Trust & safety | No input governance | Security layer redacts PII and flags injection before any LLM call |
-| Reliability | No self-checking | Evaluation harness scores outputs; 67 offline tests |
+AutoBiz breaks the work into five specialist agents that run in a fixed sequence:
+
+```text
+PeriodPlanner -> FinancialAnalyst -> CompetitorMonitor -> RiskFlaggingAnalyst -> ReportWriter
+```
+
+1. PeriodPlanner decides which sections are needed and how many fiscal years matter.
+2. FinancialAnalyst parses uploaded financials and pulls structured SEC trends when required.
+3. CompetitorMonitor checks SEC 10-K filings first and uses web search only as fallback.
+4. RiskFlaggingAnalyst identifies unusual growth, litigation language, regulatory signals, and real data gaps.
+5. ReportWriter writes the final brief while preserving source lines for filing-backed figures.
+
+This design lets planning decisions change what actually runs. For example, if the user asks only about a competitor, the FinancialAnalyst is skipped rather than called and discarded.
 
 ---
 
 ## Course concepts demonstrated
 
-The capstone requires **at least 3** course concepts. AutoBiz demonstrates
-**six**, each mapped to where a judge can find it:
-
-| # | Concept | Where in the code |
-|---|---------|-------------------|
-| 1 | **Multi-agent system (ADK)** | `autobiz/agents/pipeline.py` — a `SequentialAgent` orchestrating five `LlmAgent`s, state passed via each agent's `output_key` |
-| 2 | **MCP Server** | `server/mcp_server.py` (serves AutoBiz tools out) **and** `server/sentiment_mcp_server.py` + `autobiz/tools/mcp_client.py` (AutoBiz consumes a second server) — bidirectional |
-| 3 | **Agent skills** | `autobiz/skills/` — named, independently-runnable skills with a typed `SkillResult`, driven by the Agents CLI (`python -m autobiz.cli skill run ...`) |
-| 4 | **Security features** | `autobiz/core/security.py` — PII redaction, prompt-injection detection, input sanitisation, wired into the orchestrator before anything runs |
-| 5 | **Deployability** | `Dockerfile.backend`, `Dockerfile.mcp`, `docker-compose.yml`; FastAPI + React split; Colab/Kaggle notebook |
-| 6 | **Tool use** | `autobiz/agents/adk_tools.py` — plain Python functions auto-wrapped as ADK `FunctionTool`s (10-K fetch, XBRL trend, web search, financial parsing) |
+| Concept            | Implementation                                                                                  |
+| ------------------ | ----------------------------------------------------------------------------------------------- |
+| Multi-agent system | `autobiz/agents/pipeline.py` uses a Google ADK `SequentialAgent` with five `LlmAgent`s          |
+| MCP server         | `server/mcp_server.py` exposes AutoBiz tools to MCP-compatible clients                          |
+| MCP client         | `autobiz/tools/mcp_client.py` consumes a second independent MCP server                          |
+| Agent skills       | `autobiz/skills/` contains standalone, typed, independently runnable skills                     |
+| Security           | `autobiz/core/security.py` performs PII redaction, prompt-injection detection, and sanitization |
+| Tool use           | `autobiz/agents/adk_tools.py` wraps SEC, XBRL, document parsing, and web search functions       |
+| Deployability      | Dockerfiles, `docker-compose.yml`, FastAPI backend, React frontend, and Colab/Kaggle notebook   |
 
 ---
 
 ## Architecture
 
-Built on **Google ADK** primitives. Five specialist `LlmAgent`s are
-orchestrated by a `SequentialAgent`; state flows between stages via each
-agent's `output_key` into the shared ADK session state. The `Runner` +
-`InMemorySessionService` execute the pipeline. A thin **FastAPI** layer
-(`server/main.py`) exposes that pipeline over REST so the **React** frontend
-(`frontend/`) can drive it — no agent code changed to support the UI.
+AutoBiz is a full-stack application with three main layers:
 
-```
-   ┌──────────────┐     REST/JSON      ┌───────────────────────────┐
-   │  React UI    │ ─────────────────▶ │  FastAPI middleware        │
-   │  (frontend/) │ ◀───────────────── │  (server/main.py)          │
-   └──────────────┘                    └─────────────┬──────────────┘
-                                                      ▼
-                 ┌──────────────────────────────────────────────┐
-                 │  Orchestrator (security · memory · trace)     │
-                 └─────────────────┬────────────────────────────┘
-                                   ▼
-   ┌────────────────────────────────────────────────────────────────────┐
-   │        ADK SequentialAgent: "BusinessIntelPipeline"                 │
-   │                                                                    │
-   │  PeriodPlanner ▶ FinancialAnalyst ▶ CompetitorMonitor ▶            │
-   │       │                │                   │                        │
-   │       ▼                ▼                   ▼                        │
-   │  period_plan     financial_summary   competitor_summary            │
-   │                                                                    │
-   │            ▶ RiskFlaggingAnalyst ▶ ReportWriter                    │
-   │                     │                    │                         │
-   │                     ▼                    ▼                         │
-   │               anomaly_flags         final_report                   │
-   │                                                                    │
-   │  Tools (ADK FunctionTools, tried in priority order):               │
-   │   get_10k_filing_excerpt · get_financial_trend (XBRL) ·            │
-   │   search_competitor_news · analyze_financial_document              │
-   └────────────────────────────────────────────────────────────────────┘
-                                   ▼
-   Shared layer:  SQLite sessions · ChromaDB recall · JSON traces ·
-                  Security guard · Evaluation harness · Source verification
+- React and Vite frontend;
+- FastAPI backend;
+- Google ADK agent pipeline.
 
-   Two-way MCP:   server/mcp_server.py  ── serves AutoBiz tools outward ▶ (Claude Desktop, etc.)
-                  autobiz/tools/mcp_client.py ── consumes ▶ server/sentiment_mcp_server.py
+The React frontend collects the user question, competitor name, and optional financial file. The FastAPI backend handles uploads, security checks, session state, memory, orchestration, and trace output. The agent pipeline performs planning, analysis, competitor research, risk review, and report writing.
+
+```text
+React UI
+   |
+   | REST API
+   v
+FastAPI backend
+   |
+   v
+Orchestrator: security, memory, trace, session state
+   |
+   v
+Google ADK SequentialAgent
+   |
+   | PeriodPlanner
+   | FinancialAnalyst
+   | CompetitorMonitor
+   | RiskFlaggingAnalyst
+   | ReportWriter
+   v
+Verified executive brief
 ```
 
-Orchestration is deterministic (`SequentialAgent`); each step's reasoning and
-tool use is LLM-driven — the canonical ADK "assembly line" pattern. The FastAPI
-layer is a pure adapter: it calls the same `Orchestrator.handle()` the CLI uses,
-offloading to a worker thread (since `handle()` internally calls `asyncio.run()`
-to drive the ADK `Runner`). No business logic lives in `server/`.
+The backend calls the same orchestrator used by the CLI. Business logic does not live in the web layer.
 
-> **Offline by design — with one honest exception.** Without a `GEMINI_API_KEY`,
-> the agents use `MockLlm`, a real `google.adk.models.BaseLlm` subclass, so ADK
-> orchestration (agents, `SequentialAgent`, `Runner`, sessions) runs with no key
-> and no network. Financial-document analysis is fully offline. Competitor
-> research is the exception: `MockLlm` genuinely calls the live SEC EDGAR API
-> (web search as fallback) rather than fabricating data, so a competitor query
-> still needs network access even in mock mode. If SEC EDGAR and web search are
-> both unreachable, the agent reports that honestly instead of inventing a
-> briefing. Add a Gemini key and the same agents call Gemini for everything else.
+The system also includes:
+
+- SQLite for session history;
+- ChromaDB for semantic recall;
+- SEC filing cache keyed by accession number;
+- JSON trace logs;
+- source verification;
+- MCP server and MCP client support.
 
 ---
 
-## The verification mechanism
+## Verification
 
-This is the differentiator, so it's worth being precise about what it does and
-doesn't do.
+Verification is the core safeguard in AutoBiz.
 
-When a competitor's 10-K is fetched, its stripped plain text is cached on disk,
-keyed by SEC **accession number** (a filed 10-K is immutable, so the cache
-never goes stale). The `source_verification` skill takes a **claim** (a sentence
-from the report) and the **accession number** it was sourced from, then:
+When a competitor filing is fetched, AutoBiz caches the stripped filing text by SEC accession number. The source verification skill takes a claim and the accession number it was supposedly sourced from, then checks whether every numeric figure in the claim appears in the cached filing text.
 
-1. Extracts every checkable numeric token from the claim (dollar figures,
-   percentages, large numbers).
-2. Re-extracts numeric tokens from the cached filing text the same way.
-3. Normalises both sides (strips `$`, commas, whitespace) and compares as sets.
-4. Returns `ok: true` **only if every checked number is genuinely present** in
-   the source. A fabricated or mistyped figure is flagged, with a confidence
-   score = (matched numbers / total checked).
+Example:
 
 ```bash
-# A figure that IS in Apple's FY2025 10-K → verified
 python -m autobiz.cli skill run source_verification \
   --claim "Revenue was \$416,161 million" \
   --accession_number 0000320193-25-000079
+```
 
-# A plausible-but-invented figure → flagged, not trusted
+A fabricated figure is flagged:
+
+```bash
 python -m autobiz.cli skill run source_verification \
   --claim "Revenue was \$999,999 million" \
   --accession_number 0000320193-25-000079
 ```
 
-**What "verified" means here:** the cited figures are genuinely present in the
-source filing — *not* that the sentence's interpretation is true. That
-distinction is deliberate and is reflected in the confidence score and wording
-of every result. Validating natural-language claims against natural-language
-source text reliably is a much harder problem than number matching, so AutoBiz
-verifies numbers and says so plainly rather than overclaiming.
+Verification runs in two ways:
+
+1. as a standalone skill through the CLI;
+2. as a post-report gate after `ReportWriter` finishes.
+
+A verified number means the number is present in the cited filing. It does not mean the surrounding interpretation is automatically correct. AutoBiz is explicit about that boundary.
 
 ---
 
 ## Quick start
 
 ```bash
-# 1. Clone
 git clone https://github.com/garimatripathi3/AutoBiz-Verified-Competitor-Intelligence-from-SEC-Filings.git
 cd AutoBiz-Verified-Competitor-Intelligence-from-SEC-Filings
 
-# 2. (Recommended) create a virtual environment
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+python -m venv .venv
+source .venv/bin/activate
+# Windows: .venv\Scripts\activate
 
-# 3. Install — minimal (offline mode) OR full
-pip install -r requirements-minimal.txt    # ADK + pandas + FastAPI/uvicorn + requests
-# pip install -r requirements.txt          # full: gemini, chroma, pdf, search...
+pip install -r requirements-minimal.txt
 
-# 4. Run the pipeline from the CLI
-#    (financial analysis is offline, no key needed; competitor research needs network)
 python -m autobiz.cli \
   --file data/sample/financials.csv \
   --competitor "Apple Inc." \
@@ -249,252 +195,269 @@ python -m autobiz.cli \
   --show-trace
 ```
 
-> Use a real SEC-registered public company (e.g. "Apple Inc.", "Tesla, Inc.")
-> to see the 10-K path. A fictional or private name will correctly fall back to
-> web search, and report honestly if that's also unavailable rather than
-> fabricate a briefing.
-
-You'll see the executed plan, the generated brief, the security summary, and the
-agent trace — all without any API key.
+Financial document analysis can run offline. Competitor research requires network access because it checks SEC EDGAR and, when needed, web fallback sources.
 
 ---
 
 ## Running the web app
 
-A **React frontend** talks to a **FastAPI middleware** over REST. Run both:
+Run the backend:
 
 ```bash
-# Terminal 1 — API middleware (wraps the existing Orchestrator)
 pip install -r requirements.txt
 uvicorn server.main:app --reload --host 0.0.0.0 --port 8000
+```
 
-# Terminal 2 — React frontend
+Run the frontend:
+
+```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-Open the URL Vite prints (typically <http://localhost:5173>). The UI lets you
-upload a PDF/CSV, name a competitor, run the agent team, read/download the brief,
-and watch the **live agent trace** and **plan** in the right-hand panel. Clicking
-a report section highlights the matching agent's entries in the trace — a visual
-link between a claim and the step that produced it. If your API runs elsewhere,
-set `VITE_API_BASE` in `frontend/.env`.
+Open the Vite URL, usually:
 
-Production build:
-
-```bash
-cd frontend && npm run build   # static files → frontend/dist
+```text
+http://localhost:5173
 ```
 
-### Docker
+The UI supports file upload, competitor selection, question input, live agent trace, report viewing, and markdown download.
+
+For production frontend build:
 
 ```bash
-docker compose up --build      # backend + MCP server per docker-compose.yml
+cd frontend
+npm run build
+```
+
+Run backend and MCP server with Docker:
+
+```bash
+docker compose up --build
 ```
 
 ---
 
-## Running on Colab / Kaggle
+## Running on Colab or Kaggle
 
-A ready-to-run notebook lives at **`notebook/autobiz_capstone.ipynb`**.
+A notebook is available at:
 
-- It installs the minimal deps and runs the **full pipeline in offline mock mode**.
-- To enable live Gemini, set `os.environ["GEMINI_API_KEY"] = "..."` near the top.
-- The React/FastAPI web app isn't available inside Kaggle; the notebook
-  demonstrates every subsystem in cells instead (the recommended Kaggle artifact).
+```text
+notebook/autobiz_capstone.ipynb
+```
 
-> **Note:** Colab and Kaggle block local LLM daemons, which is why AutoBiz uses
-> Gemini's free API for live mode and a deterministic mock for offline mode —
-> both work everywhere.
+The notebook installs dependencies and runs the system in offline mock mode. To enable Gemini, set:
 
----
+```python
+import os
+os.environ["GEMINI_API_KEY"] = "your-key-here"
+```
 
-## Using live Gemini
-
-1. Get a **free** API key (no credit card) at
-   <https://aistudio.google.com/app/apikey>.
-2. Copy `.env.example` to `.env` and paste your key:
-   ```env
-   GEMINI_API_KEY=your-key-here
-   GEMINI_MODEL=gemini-flash-latest
-   ```
-   > `gemini-1.5-flash` was retired by Google. The default is the
-   > `gemini-flash-latest` alias so it won't go stale; override `GEMINI_MODEL`
-   > to pin an exact version.
-3. Run anything — the provider auto-switches to `gemini`. Confirm with:
-   ```bash
-   python -c "from autobiz.core.config import settings; print(settings.provider)"
-   ```
-
-If the key is missing or a call fails, the system **automatically falls back** to
-the offline mock so a demo never breaks.
+The React and FastAPI web app is not required in Kaggle. The notebook demonstrates the same backend capabilities through cells.
 
 ---
 
-## Agent Skills (the Agents CLI)
+## Using Gemini
 
-`autobiz/skills/` is a layer above raw tool functions: each `Skill` is a named,
-independently-runnable capability returning a typed `SkillResult`
-(`ok`, `summary`, `confidence`, `sources`, `raw_data`) instead of a bare dict.
-Skills wrap the **same** underlying tool functions the ADK pipeline uses — no
-duplicated logic — but run standalone, with no LLM and no pipeline:
+AutoBiz uses Gemini when a key is available. Without a key, it falls back to `MockLlm`.
+
+Create `.env` from `.env.example`:
+
+```bash
+cp .env.example .env
+```
+
+Set:
+
+```env
+GEMINI_API_KEY=your-key-here
+GEMINI_MODEL=gemini-flash-latest
+```
+
+Check the active provider:
+
+```bash
+python -c "from autobiz.core.config import settings; print(settings.provider)"
+```
+
+If the Gemini key is missing or a call fails, the offline mock keeps the demo runnable.
+
+---
+
+## Agent Skills and CLI
+
+Every core capability is also available as a standalone Skill. Skills return a typed result containing:
+
+- `ok`;
+- `summary`;
+- `confidence`;
+- `sources`;
+- `raw_data`.
+
+The skills use the same underlying tool functions as the agent pipeline, so fixes and tests apply to both.
 
 ```bash
 python -m autobiz.cli skill list
-python -m autobiz.cli skill run financial_analysis   --file_path data/sample/financials.csv
-python -m autobiz.cli skill run competitor_research  --company_name "Apple Inc."
-python -m autobiz.cli skill run financial_trend      --company_name "Apple Inc." --metric revenue --years 4
-python -m autobiz.cli skill run source_verification  --claim "Revenue was \$416,161 million" --accession_number 0000320193-25-000079
+
+python -m autobiz.cli skill run financial_analysis \
+  --file_path data/sample/financials.csv
+
+python -m autobiz.cli skill run competitor_research \
+  --company_name "Apple Inc."
+
+python -m autobiz.cli skill run financial_trend \
+  --company_name "Apple Inc." \
+  --metric revenue \
+  --years 4
+
+python -m autobiz.cli skill run source_verification \
+  --claim "Revenue was \$416,161 million" \
+  --accession_number 0000320193-25-000079
 ```
 
-`financial_trend` pulls structured annual figures from SEC's `companyconcept`
-**XBRL** API — real reported numbers, not narrative text — and computes a true
-CAGR. It tries multiple XBRL tag candidates in order (companies change which tag
-they report revenue under, notably around the 2018 ASC 606 transition) and keeps
-only true ~365-day annual periods, filtering out quarterly entries.
+`financial_trend` pulls annual reported values from the SEC XBRL company-concept API and computes CAGR. It tries multiple XBRL concept tags because companies may report revenue under different tags across years.
 
 ---
 
 ## Bidirectional MCP
 
-- **Outward:** `server/mcp_server.py` exposes AutoBiz's tools to any MCP client
-  (Claude Desktop, Claude Code, other frameworks). Every tool is a thin wrapper
-  around the same `adk_tools.py` functions the pipeline uses — a fix to the tool
-  fixes both at once. Ships with DNS-rebinding protection and host allow-listing.
-- **Inward:** `server/sentiment_mcp_server.py` is a second, independent MCP
-  server with its own tool (`market_sentiment_snapshot`), and
-  `autobiz/tools/mcp_client.py` makes AutoBiz's pipeline call it *as an MCP
-  client* — genuine two-way protocol interoperability, not just exporting tools.
+AutoBiz supports MCP in both directions.
 
-The sentiment data is explicitly labelled simulated (`is_simulated: true` with a
-disclaimer) rather than sourced from an unreliable third-party feed — consistent
-with the project's honest-sourcing principle.
+Outward server:
+
+```text
+server/mcp_server.py
+```
+
+This exposes AutoBiz tools to MCP-compatible clients, including:
+
+- `parse_financial_document`;
+- `get_10k_filing`;
+- `web_search`;
+- `fetch_rss_feed`.
+
+Inward client:
+
+```text
+autobiz/tools/mcp_client.py
+```
+
+AutoBiz also calls a second independent MCP server:
+
+```text
+server/sentiment_mcp_server.py
+```
+
+That server exposes a market sentiment tool. The returned sentiment data is clearly labeled as simulated, because presenting simulated data as real would violate the project principle of honest sourcing.
+
+Run the MCP servers:
 
 ```bash
-uvicorn server.mcp_server:http_app --port 8765            # serve AutoBiz tools
-uvicorn server.sentiment_mcp_server:http_app --port 8766  # the second server AutoBiz consumes
+uvicorn server.mcp_server:http_app --port 8765
+uvicorn server.sentiment_mcp_server:http_app --port 8766
 ```
 
 ---
 
 ## Project structure
 
-```
+```text
 autobiz/
 ├── server/
-│   ├── main.py                  # FastAPI middleware (REST layer for the React UI)
-│   ├── mcp_server.py            # MCP server — exposes AutoBiz tools outward
-│   └── sentiment_mcp_server.py  # second MCP server AutoBiz consumes as a client
-├── frontend/                    # React + Vite single-page app
+│   ├── main.py
+│   ├── mcp_server.py
+│   └── sentiment_mcp_server.py
+├── frontend/
 │   ├── src/
-│   │   ├── App.jsx              # top-level layout + state orchestration
-│   │   ├── api.js               # fetch wrapper around the FastAPI endpoints
-│   │   └── components/          # Header, BriefForm, PlanStrip, ReportPanel, AgentLedger, ...
 │   ├── package.json
 │   └── vite.config.js
 ├── autobiz/
-│   ├── cli.py                   # command-line entry point + Agents CLI (skill subcommand)
+│   ├── cli.py
 │   ├── agents/
-│   │   ├── pipeline.py          # 5 LlmAgents + SequentialAgent pipeline
-│   │   ├── orchestrator.py      # drives ADK Runner + security/memory/trace
-│   │   ├── adk_tools.py         # ADK FunctionTool wrappers
-│   │   └── model_factory.py     # Gemini model OR offline MockLlm (BaseLlm)
 │   ├── skills/
-│   │   ├── base.py              # Skill / SkillResult contract
-│   │   ├── financial_analysis.py
-│   │   ├── competitor_research.py
-│   │   ├── financial_trend.py   # multi-year XBRL trend + CAGR
-│   │   └── source_verification.py  # re-checks figures against the cited filing
 │   ├── tools/
-│   │   ├── documents.py         # PDF + CSV parsing
-│   │   ├── sec_filings.py       # SEC EDGAR: CIK resolve, 10-K fetch, section extraction, XBRL
-│   │   ├── research.py          # web search + RSS (no fabricated fallback)
-│   │   └── mcp_client.py        # consumes the sentiment MCP server
 │   └── core/
-│       ├── config.py            # settings / provider + ADK key wiring
-│       ├── memory.py            # SQLite + ChromaDB (cross-run memory)
-│       ├── security.py          # PII redaction + injection guard
-│       ├── logger.py            # structured JSON tracing
-│       └── evaluation.py        # scoring harness
-├── data/sample/                 # financials.csv, sample_report.txt
+├── data/sample/
 ├── notebook/autobiz_capstone.ipynb
-├── tests/test_suite.py          # 67 offline pytest tests
-├── Dockerfile.backend · Dockerfile.mcp · docker-compose.yml
-├── requirements.txt · requirements-minimal.txt · .env.example
+├── tests/test_suite.py
+├── Dockerfile.backend
+├── Dockerfile.mcp
+├── docker-compose.yml
+├── requirements.txt
+├── requirements-minimal.txt
+├── .env.example
 └── LICENSE
 ```
 
 ---
 
-## How each subsystem works
+## Subsystem details
 
-**ADK pipeline** (`agents/pipeline.py`) — five `LlmAgent`s wired into a
-`SequentialAgent`. Each writes to a state key (`period_plan`, `financial_summary`,
-`competitor_summary`, `anomaly_flags`, `final_report`) and downstream agents read
-upstream output via `{placeholder}` references in their instructions.
+### ADK pipeline
 
-**Orchestrator** (`agents/orchestrator.py`) — sanitises the request, recalls
-related prior findings, seeds ADK session state, runs the `Runner` to completion,
-reads outputs from session state, saves a markdown report, and persists
-everything. Each question gets its **own** scoped ADK session, so prior turns
-don't bleed into unrelated follow-ups (continuity flows only through the explicit
-semantic-memory channel). Every ADK event is logged to the trace.
+`autobiz/agents/pipeline.py` defines five `LlmAgent`s and wires them into a `SequentialAgent`. Each agent writes to a state key such as `period_plan`, `financial_summary`, `competitor_summary`, `anomaly_flags`, or `final_report`.
 
-**Tools** (`agents/adk_tools.py`) — plain Python functions ADK auto-wraps as
-`FunctionTool`s. None fabricate data on failure: a failed lookup returns
-`{"ok": false, "reason": "..."}` and `CompetitorMonitor`'s instruction requires
-reporting that honestly.
+### Orchestrator
 
-**Model factory** (`agents/model_factory.py`) — one interface, two models. With a
-key, agents use the configured Gemini model string. Without one, agents use
-`MockLlm`, a real `BaseLlm` whose deterministic output is keyed on task markers —
-so demos and tests are perfectly reproducible.
+`autobiz/agents/orchestrator.py` sanitizes the request, recalls related memory, seeds ADK session state, runs the ADK `Runner`, collects outputs, saves the markdown report, and records trace events. Each question gets its own scoped ADK session to prevent context leakage.
+
+### Tools
+
+`autobiz/agents/adk_tools.py` exposes Python functions as ADK `FunctionTool`s. The tools return structured failure results instead of fabricated data.
+
+### Model factory
+
+`autobiz/agents/model_factory.py` selects either Gemini or `MockLlm`. The mock model is deterministic and implemented as a real ADK `BaseLlm` subclass, making tests reproducible.
 
 ---
 
 ## Security
 
-The security guard (`core/security.py`) runs on **every** request, before any LLM
-call or log write:
+Security checks run before any model call:
 
-- **PII redaction** — emails, phone numbers, card-like and SSN-like strings are
-  replaced with typed placeholders.
-- **Prompt-injection detection** — flags common override patterns ("ignore all
-  previous instructions", "reveal your system prompt", …) and treats the input as
-  untrusted data.
-- **Input sanitisation** — strips control characters and caps length.
+- PII redaction for emails, phone numbers, card-like strings, and SSN-like patterns;
+- prompt-injection detection for common override attempts;
+- input sanitization and length limits.
 
-The MCP server adds transport-level protection: DNS-rebinding protection and host
-allow-listing.
+The MCP server also includes DNS rebinding protection and host allow-listing.
 
 ---
 
 ## Observability
 
-Every action appends a structured JSON line to `data/agent_traces.jsonl`:
+AutoBiz writes structured trace events to:
 
-```json
-{"ts": 1782.4, "agent": "orchestrator", "event": "plan_built", "steps": ["period_planner", "financial_analyst", "..."]}
+```text
+data/agent_traces.jsonl
 ```
 
-Load it into pandas, replay a run, or watch it live in the React UI's **Agent
-trace** panel (a terminal-style ledger). An in-memory ring buffer (`tracer.tail(n)`)
-powers the live view via the `/api/trace` endpoint.
+The React frontend displays these events in a live agent trace panel. The `/api/trace` endpoint is backed by an in-memory ring buffer.
 
 ---
 
 ## Evaluation
 
+Run the evaluation harness:
+
 ```bash
 python -m autobiz.core.evaluation
-# or
+```
+
+or:
+
+```bash
 python -m autobiz.cli --eval
 ```
 
-Three end-to-end cases (financial-only, competitor-only, combined) are scored on
-**keyword coverage** and **required-section structure**. Offline mode passes all
-three, giving a baseline to compare live-Gemini runs against.
+The evaluation includes financial-only, competitor-only, and combined scenarios. It scores required section structure and keyword coverage.
+
+For source verification accuracy on real filings:
+
+```bash
+python -m eval.verification_accuracy --company "Apple Inc."
+python -m eval.verification_accuracy --company "Microsoft"
+```
 
 ---
 
@@ -505,48 +468,49 @@ pip install pytest
 pytest -q
 ```
 
-**67 tests** cover security, tools (SEC EDGAR CIK resolution, 10-K section
-extraction and TOC disambiguation, XBRL trend computation with tag fallback), the
-skills layer (including the Agents CLI as a subprocess), the MCP server (both
-directions — serving tools and consuming the second server), the Period Planner's
-section-relevance and period-detection logic, the Risk Flagging agent, memory, the
-orchestrator paths (the 10-K → news → honest-failure priority chain, multi-turn
-sessions), and the eval harness. They run **fully offline** (no key, no network)
-in a few seconds.
+The test suite includes 67 offline tests covering:
+
+- security;
+- SEC CIK resolution;
+- 10-K section extraction;
+- XBRL trend computation;
+- tag fallback;
+- skills and CLI subprocesses;
+- MCP server and MCP client paths;
+- period planning;
+- risk flagging;
+- memory;
+- orchestrator behavior;
+- verification for correct, fabricated, and partial claims.
+
+The tests run without an API key and without network access.
 
 ---
 
-## Limitations (by design)
+## Limitations
 
-AutoBiz is deliberately honest about its own boundaries — the same principle it
-applies to competitor data:
+AutoBiz is explicit about its limits:
 
-- **Verification checks numbers, not prose.** A "verified" claim means its cited
-  figures appear in the source filing, not that its interpretation is correct.
-- **Verification runs against cached filings** — the exact filing a figure was
-  originally sourced from. It won't re-download just to verify.
-- **Number matching is presence-based:** it confirms a figure appears in the
-  filing, not that it appears in the right context. This is a conservative floor,
-  not a ceiling.
-- **Only SEC-registered filers** get the primary 10-K path; private and foreign
-  companies fall back to web search (clearly marked as a weaker source) or an
-  honest "no reliable data".
+- Verification checks whether a number appears in the filing, not whether it is used in the right context.
+- Verification uses cached filings from the original fetch.
+- Number matching is presence-based.
+- SEC filings are available only for SEC-registered companies.
+- Private and foreign companies may require web fallback or may return no reliable data.
 
-These are stated up front because a tool built on "guilty until sourced" should
-hold itself to the same standard.
+These limits are stated because a tool built on sourced claims should hold itself to the same standard.
 
 ---
 
 ## Roadmap
 
-- Context-aware number verification (right figure, right section).
-- A dedicated Risk/Compliance agent for regulatory scanning.
-- Vector-embed uploaded documents for cross-report retrieval.
-- Export to PDF/PPTX directly from the UI.
-- Optional human-in-the-loop approval before a brief is finalised.
+- Context-aware number verification.
+- Deeper regulatory and compliance scanning.
+- Better retrieval over uploaded documents.
+- PDF and presentation export from the UI.
+- Optional human approval before final report generation.
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
