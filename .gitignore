@@ -1,0 +1,18 @@
+__pycache__/
+*.pyc
+.env
+data/sessions.db
+data/chroma/
+data/agent_traces.jsonl
+data/reports/*.md
+data/uploads/*
+!data/uploads/.gitkeep
+.venv/
+venv/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env

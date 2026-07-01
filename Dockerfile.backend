@@ -1,0 +1,50 @@
+# AutoBiz Intelligence Suite — FastAPI backend
+#
+# Runs the REST API (server/main.py) that the React frontend talks to.
+# This is the existing app, containerized — no code changes were needed to
+# make it run here; it already reads all configuration from environment
+# variables via autobiz/core/config.py.
+#
+# Build:  docker build -f Dockerfile.backend -t autobiz-backend .
+# Run:    docker run -p 8000:8000 --env-file .env autobiz-backend
+#
+# Prefer `docker compose up` (see docker-compose.yml) to run this alongside
+# the MCP server with shared volumes for cache/data persistence.
+
+FROM python:3.12-slim AS base
+
+# SEC EDGAR and Gemini both reach out over HTTPS; ca-certificates is required
+# for those TLS connections to validate. build-essential covers any tool
+# dependency (e.g. pdfplumber's transitive deps) that needs to compile from
+# source on slim images.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Python dependencies first, separately from app code, so Docker's
+# layer cache only re-installs packages when requirements.txt actually
+# changes — not on every code edit.
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Now copy the actual application code.
+COPY autobiz/ ./autobiz/
+COPY server/ ./server/
+COPY data/sample/ ./data/sample/
+
+# data/ subdirectories the app writes to at runtime (uploads, reports,
+# sessions.db, the SEC filing cache) are created automatically by
+# autobiz/core/config.py on import — no need to pre-create them here, but we
+# do want them to live on a mounted volume in production so they persist
+# across container restarts (see docker-compose.yml).
+
+ENV PYTHONUNBUFFERED=1
+EXPOSE 8000
+
+# Default to mock mode unless GEMINI_API_KEY / LLM_PROVIDER are supplied via
+# --env-file or docker-compose, matching the local-dev default behavior in
+# autobiz/core/config.py.
+CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,0 +1,31 @@
+# Keep the Docker build context small and fast. The backend/MCP images only
+# need autobiz/, server/, and requirements.txt — everything else here is
+# either frontend tooling (built/deployed separately, e.g. to Netlify) or
+# local dev artifacts that shouldn't end up baked into an image.
+
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# Local dev/runtime data — these should be volumes, not baked into the image.
+data/uploads/
+data/reports/
+data/sec_cache/
+data/chroma/
+data/sessions.db
+data/agent_traces.jsonl
+
+# Python/dev artifacts
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# Secrets — never bake these into an image; pass at runtime via --env-file.
+.env
+
+.git/
+.gitignore
+notebook/
+*.ipynb

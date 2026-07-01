@@ -1,0 +1,31 @@
+# --- Multi-agent framework (REQUIRED — this is the core of the project) ---
+google-adk>=2.0.0
+
+# --- Core ---
+pandas>=2.0
+
+# --- API middleware (REST layer for the React frontend; replaces Streamlit) ---
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+
+# --- LLM provider (Gemini via ADK; optional — offline mock used without a key) ---
+google-genai>=1.0.0
+
+# --- Memory ---
+chromadb>=0.4.0
+
+# --- Tools (optional; project degrades gracefully if missing) ---
+pdfplumber>=0.10.0
+ddgs>=0.9.0
+feedparser>=6.0.0
+requests>=2.28.0
+
+# --- MCP server (exposes tools to external MCP clients) ---
+mcp>=1.20.0
+
+# --- Config ---
+python-dotenv>=1.0.0
+
+# --- Testing ---
+pytest>=7.0

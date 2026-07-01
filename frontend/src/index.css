@@ -1,0 +1,104 @@
+/* ===========================================================================
+   AutoBiz Intelligence Suite -- design tokens
+   A financial-publication aesthetic: ledger paper, hairline rules, a serif
+   display face for editorial weight, a grotesk for UI/data, and a mono face
+   for the live agent tape. Two accents: copper (financial) / teal (competitive).
+=========================================================================== */
+:root {
+  /* color */
+  --ink: #0e1420;
+  --ink-soft: #2a3344;
+  --paper: #f7f5f0;
+  --paper-raised: #fffdf9;
+  --paper-sunken: #efebe1;
+  --rule: #d9d4c6;
+  --rule-strong: #b9b29e;
+  --copper: #b5651d;
+  --copper-deep: #8c4d14;
+  --copper-tint: #f1e2d2;
+  --teal: #1f5f5b;
+  --teal-deep: #163f3d;
+  --teal-tint: #dde9e7;
+  --red: #a13a2f;
+  --green: #3c6e47;
+  --amber: #b08a2e;
+  --muted: #6b6457;
+
+  /* type */
+  --font-display: "Fraunces", "Iowan Old Style", serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  /* layout */
+  --radius-sm: 3px;
+  --radius-md: 6px;
+  --shadow-card: 0 1px 2px rgba(14, 20, 32, 0.06), 0 8px 24px -12px rgba(14, 20, 32, 0.18);
+
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(14,20,32,0.035) 1px, transparent 0);
+  background-size: 22px 22px;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font-family: inherit;
+}
+
+::selection {
+  background: var(--copper-tint);
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--rule-strong);
+  border-radius: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

@@ -1,0 +1,37 @@
+# AutoBiz Intelligence Suite — MCP server
+#
+# Runs server/mcp_server.py over the streamable-http transport, exposing the
+# project's tool functions (PDF/CSV parsing, SEC 10-K lookup, web search) to
+# external MCP clients (Claude Desktop, Claude Code, other agent frameworks).
+# Independent of the FastAPI backend and the React frontend — none of them
+# call each other.
+#
+# Build:  docker build -f Dockerfile.mcp -t autobiz-mcp .
+# Run:    docker run -p 8765:8765 --env-file .env autobiz-mcp
+#
+# Prefer `docker compose up` (see docker-compose.yml).
+
+FROM python:3.12-slim AS base
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY autobiz/ ./autobiz/
+COPY server/ ./server/
+COPY data/sample/ ./data/sample/
+
+ENV PYTHONUNBUFFERED=1
+EXPOSE 8765
+
+# Runs the same streamable-http ASGI app server/mcp_server.py exposes as
+# `http_app`, directly via uvicorn — equivalent to
+# `python -m server.mcp_server --transport streamable-http` but gives Docker
+# the standard uvicorn process lifecycle (graceful shutdown on SIGTERM, etc).
+CMD ["uvicorn", "server.mcp_server:http_app", "--host", "0.0.0.0", "--port", "8765"]
