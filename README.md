@@ -230,7 +230,7 @@ verifies numbers and says so plainly rather than overclaiming.
 
 ```bash
 # 1. Clone
-git clone <your-repo-url> autobiz
+git clone [<your-repo-url> autobiz](https://github.com/garimatripathi3/AutoBiz-Verified-Competitor-Intelligence-from-SEC-Filings.git)
 cd autobiz
 
 # 2. (Recommended) create a virtual environment
