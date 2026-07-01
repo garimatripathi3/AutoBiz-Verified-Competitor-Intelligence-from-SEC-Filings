@@ -33,16 +33,17 @@ AutoBiz treats every number as guilty until sourced. If a figure cannot be trace
 8. [Running on Colab or Kaggle](#running-on-colab-or-kaggle "Running on Colab or Kaggle")
 9. [Using Gemini](#using-gemini "Using Gemini")
 10. [Agent Skills and CLI](#agent-skills-and-cli "Agent Skills and CLI")
-11. [Bidirectional MCP](#bidirectional-mcp "Bidirectional MCP")
-12. [Project structure](#project-structure "Project structure")
-13. [Subsystem details](#subsystem-details "Subsystem details")
-14. [Security](#security "Security")
-15. [Observability](#observability "Observability")
-16. [Evaluation](#evaluation "Evaluation")
-17. [Testing](#testing "Testing")
-18. [Limitations](#limitations "Limitations")
-19. [Roadmap](#roadmap "Roadmap")
-20. [License](#license "License")
+11. [Generating financial data from SEC](#generating-financial-data-from-sec "Generating financial data from SEC")
+12. [Bidirectional MCP](#bidirectional-mcp "Bidirectional MCP")
+13. [Project structure](#project-structure "Project structure")
+14. [Subsystem details](#subsystem-details "Subsystem details")
+15. [Security](#security "Security")
+16. [Observability](#observability "Observability")
+17. [Evaluation](#evaluation "Evaluation")
+18. [Testing](#testing "Testing")
+19. [Limitations](#limitations "Limitations")
+20. [Roadmap](#roadmap "Roadmap")
+21. [License](#license "License")
 
 ---
 
@@ -53,6 +54,7 @@ AutoBiz takes a user question, an optional financial document, and a competitor 
 The system can:
 
 - parse uploaded CSV or PDF financials;
+- generate a real financials CSV for any SEC-registered company directly from XBRL data, so public-company numbers never have to be typed by hand;
 - research competitors using SEC 10-K filings first;
 - fall back to web search only when SEC filings are unavailable;
 - pull multi-year financial trends from SEC XBRL data;
@@ -96,6 +98,7 @@ This design lets planning decisions change what actually runs. For example, if t
 | Agent skills       | `autobiz/skills/` contains standalone, typed, independently runnable skills                     |
 | Security           | `autobiz/core/security.py` performs PII redaction, prompt-injection detection, and sanitization |
 | Tool use           | `autobiz/agents/adk_tools.py` wraps SEC, XBRL, document parsing, and web search functions       |
+| SEC data generation| `eval/make_csv_from_sec.py` builds a real multi-year financials CSV from the SEC XBRL API        |
 | Deployability      | Dockerfiles, `docker-compose.yml`, FastAPI backend, React frontend, and Colab/Kaggle notebook   |
 
 ---
@@ -181,13 +184,10 @@ A verified number means the number is present in the cited filing. It does not m
 ```bash
 git clone https://github.com/garimatripathi3/AutoBiz-Verified-Competitor-Intelligence-from-SEC-Filings.git
 cd AutoBiz-Verified-Competitor-Intelligence-from-SEC-Filings
-
 python -m venv .venv
 source .venv/bin/activate
 # Windows: .venv\Scripts\activate
-
 pip install -r requirements-minimal.txt
-
 python -m autobiz.cli \
   --file data/sample/financials.csv \
   --competitor "Apple Inc." \
@@ -299,24 +299,34 @@ The skills use the same underlying tool functions as the agent pipeline, so fixe
 
 ```bash
 python -m autobiz.cli skill list
-
 python -m autobiz.cli skill run financial_analysis \
   --file_path data/sample/financials.csv
-
 python -m autobiz.cli skill run competitor_research \
   --company_name "Apple Inc."
-
 python -m autobiz.cli skill run financial_trend \
   --company_name "Apple Inc." \
   --metric revenue \
   --years 4
-
 python -m autobiz.cli skill run source_verification \
   --claim "Revenue was \$416,161 million" \
   --accession_number 0000320193-25-000079
 ```
 
 `financial_trend` pulls annual reported values from the SEC XBRL company-concept API and computes CAGR. It tries multiple XBRL concept tags because companies may report revenue under different tags across years.
+
+---
+
+## Generating financial data from SEC
+
+For public companies, you do not need to prepare a financials spreadsheet by hand. A helper pulls real multi-year figures straight from the SEC XBRL company-concept API and writes a ready-to-use CSV:
+
+```bash
+python -m eval.make_csv_from_sec --company "Apple Inc." --out apple_financials.csv
+```
+
+The output has one row per fiscal year with `period`, `revenue`, `gross_profit`, `operating_income`, and `net_income` — every value taken from what the company reported to the SEC. For Apple, FY2025 produces revenue of \$416,161M, gross profit of \$195,201M, operating income of \$133,050M, and net income of \$112,010M, each traceable to Apple's 10-K. A metric a company does not report under a supported XBRL tag is left blank rather than estimated, consistent with the project's rule that a number appears only when it is genuinely filed.
+
+Private companies upload their own CSV instead; the parser reads whatever columns it contains and summarizes each numeric one.
 
 ---
 
@@ -378,6 +388,9 @@ autobiz/
 │   ├── skills/
 │   ├── tools/
 │   └── core/
+├── eval/
+│   ├── make_csv_from_sec.py
+│   └── verification_accuracy.py
 ├── data/sample/
 ├── notebook/autobiz_capstone.ipynb
 ├── tests/test_suite.py
@@ -494,6 +507,7 @@ AutoBiz is explicit about its limits:
 - Verification checks whether a number appears in the filing, not whether it is used in the right context.
 - Verification uses cached filings from the original fetch.
 - Number matching is presence-based.
+- Section extraction depends on filing format; when a 10-K's HTML hides the section headers, AutoBiz falls back rather than failing.
 - SEC filings are available only for SEC-registered companies.
 - Private and foreign companies may require web fallback or may return no reliable data.
 
